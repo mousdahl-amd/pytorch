@@ -184,6 +184,14 @@ bool CUDAHooks::hasCKSDPA() const {
 #endif
 }
 
+bool CUDAHooks::hasHipDNNSDPA() const {
+#if defined(USE_ROCM) && defined(USE_HIPDNN)
+    return true;
+#else
+    return false;
+#endif
+}
+
 bool CUDAHooks::hasCKGEMM() const {
 #if !defined(USE_ROCM)
     return false;

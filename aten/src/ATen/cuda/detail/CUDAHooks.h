@@ -32,6 +32,7 @@ struct CUDAHooks : public at::CUDAHooksInterface {
   bool hasCuBLASLt() const override;
   bool hasROCM() const override;
   bool hasCKSDPA() const override;
+  bool hasHipDNNSDPA() const override;
   bool hasCKGEMM() const override;
   const at::cuda::NVRTC& nvrtc() const override;
   DeviceIndex current_device() const override;

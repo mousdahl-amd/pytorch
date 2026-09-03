@@ -8,6 +8,10 @@
 #if defined(__has_include) && __has_include(<cudnn_frontend_version.h>)
 #include <cudnn_frontend_version.h>
 #endif
+#elif AT_HIPDNN_ENABLED()
+// Supplies <cudnn_frontend.h>'s surface, the `cudnn_frontend` namespace, and
+// CUDNN_VERSION / CUDNN_FRONTEND_VERSION from hipDNN's compatibility shim.
+#include <ATen/hipdnn/cudnn_compat.h>
 #endif
 
 namespace at::native {
@@ -44,7 +48,7 @@ bool has_aligned_varlen_layout(const Tensor& tensor) {
 
 } // namespace at::native
 
-#if defined(USE_ROCM) || !AT_CUDNN_ENABLED() || !defined(CUDNN_VERSION) || \
+#if (!AT_CUDNN_ENABLED() && !AT_HIPDNN_ENABLED()) || !defined(CUDNN_VERSION) || \
     (defined(CUDNN_VERSION) && CUDNN_VERSION < 8900) ||                    \
     !defined(CUDNN_FRONTEND_VERSION) ||                                    \
     (defined(CUDNN_FRONTEND_VERSION) && CUDNN_FRONTEND_VERSION < 10100)
@@ -163,12 +167,16 @@ void run_cudnn_SDP_bprop_nestedtensor(
 } // namespace native
 } // namespace at
 
-#else // AT_CUDNN_ENABLED && CUDNN_VERSION >= 8900 && CUDNN_FRONTEND_VERSION >=
-      // 10100
+#else // a cudnn-frontend-compatible backend is available: cuDNN >= 8900 with
+      // frontend >= 10100, or hipDNN's compatibility shim
+#if AT_CUDNN_ENABLED()
 #include <cudnn_frontend.h>
+#endif
 
 #include <ATen/cuda/CUDAContext.h>
+#if AT_CUDNN_ENABLED()
 #include <ATen/cudnn/Handle.h>
+#endif
 #include <ATen/native/cudnn/MHA.h>
 #include <ATen/native/transformers/cuda/sdp_utils.h>
 #include <ATen/native/transformers/sdp_utils.h>
@@ -181,7 +189,9 @@ void run_cudnn_SDP_bprop_nestedtensor(
 
 #include <c10/cuda/CUDACachingAllocator.h>
 #include <c10/util/TypeCast.h>
+#if AT_CUDNN_ENABLED()
 #include <cudnn.h>
+#endif
 
 #include <cstdint>
 #include <iostream>
@@ -197,6 +207,18 @@ namespace at::native {
 namespace fe = cudnn_frontend;
 
 constexpr uint8_t MAX_MHA_DIM = 4;
+
+// Works around a cuDNN dropout bug on SM 10.0 that wants int64 seed/offset.
+// HIP reports the gfx arch through the same major/minor fields (gfx942 is 9.4),
+// so this must never fire on ROCm, where the bug does not exist.
+static bool needs_int64_dropout_state() {
+#if AT_HIPDNN_ENABLED()
+  return false;
+#else
+  const auto dprops = at::cuda::getCurrentDeviceProperties();
+  return dprops->major == 10 && dprops->minor == 0;
+#endif
+}
 
 static void check_cudnn_sdpa_execution(fe::error_t err) {
   if (C10_LIKELY(err.is_good())) {
@@ -1649,11 +1671,9 @@ void run_cudnn_SDP_fprop(
     }
   }
 
-  const auto dprops = at::cuda::getCurrentDeviceProperties();
   auto _dropoutseed = dropoutseed;
   auto _dropoutoffset = dropoutoffset;
-  // cuDNN dropout bug requires these to be in int64
-  if (dprops->major == 10 && dprops->minor == 0) {
+  if (needs_int64_dropout_state()) {
     _dropoutseed = dropoutseed.to(kLong);
     _dropoutoffset = dropoutoffset.to(kLong);
   }
@@ -1681,9 +1701,13 @@ void run_cudnn_SDP_fprop(
       is_causal ? CausalMask::TOP_LEFT : CausalMask::NONE,
       return_softmaxstats,
       false);
-  auto [cache_it, not_found] = getMHAGraphCache_().try_emplace(key, nullptr);
-  if (not_found) {
-    cache_it->second = build_graph(
+  // Insert only after a successful build, matching the nested paths below:
+  // build_graph throws when the backend declines the graph, and a null entry
+  // left in the cache would be dereferenced by the next call with this shape.
+  MHAGraphCache& cache = getMHAGraphCache_();
+  auto cache_it = cache.find(key);
+  if (cache_it == cache.end()) {
+    auto graph = build_graph(
         b,
         h,
         s_q,
@@ -1703,6 +1727,7 @@ void run_cudnn_SDP_fprop(
         _dropoutseed,
         _dropoutoffset,
         handle);
+    cache_it = cache.try_emplace(key, std::move(graph)).first;
   }
   const fe::graph::Graph& mha_graph = *cache_it->second;
   std::unordered_map<int64_t, void*> variant_pack = {
@@ -1989,11 +2014,9 @@ void run_cudnn_SDP_bprop(
   Tensor seqlen_q, seqlen_kv;
   Tensor rag_off_q, rag_off_k, rag_off_v, rag_off_o, rag_off_lse;
 
-  auto dprops = at::cuda::getCurrentDeviceProperties();
   auto _dropoutseed = dropoutseed;
   auto _dropoutoffset = dropoutoffset;
-  // cuDNN dropout bug requires these to be in int64
-  if (dprops->major == 10 && dprops->minor == 0) {
+  if (needs_int64_dropout_state()) {
     _dropoutseed = dropoutseed.to(kLong);
     _dropoutoffset = dropoutoffset.to(kLong);
   }
@@ -2061,10 +2084,12 @@ void run_cudnn_SDP_bprop(
       is_causal ? CausalMask::TOP_LEFT : CausalMask::NONE,
       true,
       false);
-  auto [cache_it, not_found] =
-      getMHAGraphBackwardCache_().try_emplace(key, nullptr);
-  if (not_found) {
-    cache_it->second = build_graph_backward(
+  // See the note in run_cudnn_SDP_fprop: a failed build must not leave a null
+  // entry behind.
+  MHAGraphCache& cache = getMHAGraphBackwardCache_();
+  auto cache_it = cache.find(key);
+  if (cache_it == cache.end()) {
+    auto graph = build_graph_backward(
         b,
         h,
         s_q,
@@ -2087,6 +2112,7 @@ void run_cudnn_SDP_bprop(
         _dropoutseed,
         _dropoutoffset,
         handle);
+    cache_it = cache.try_emplace(key, std::move(graph)).first;
   }
   const fe::graph::Graph& mha_graph = *cache_it->second;
 
@@ -2210,11 +2236,9 @@ void run_cudnn_SDP_bprop_nestedtensor(
       softmaxstats_.stride(-3) == 1,
       "cuDNN SDPA expected a contiguous (H, T) softmax_lse");
 
-  auto dprops = at::cuda::getCurrentDeviceProperties();
   auto _dropoutseed = dropoutseed;
   auto _dropoutoffset = dropoutoffset;
-  // cuDNN dropout bug requires these to be in int64
-  if (dprops->major == 10 && dprops->minor == 0) {
+  if (needs_int64_dropout_state()) {
     _dropoutseed = dropoutseed.to(kLong);
     _dropoutoffset = dropoutoffset.to(kLong);
   }

@@ -3336,6 +3336,14 @@ Call this whenever a new thread is created in order to propagate values from
 #endif
   });
 
+  py_module.def("_is_hipdnn_sdpa_available", []() {
+#ifdef USE_ROCM
+    return at::globalContext().hasHipDNNSDPA();
+#else
+    return false;
+#endif
+  });
+
   py_module.def(
       "_set_sm_carveout_experimental", [](std::optional<int32_t> val) {
         at::globalContext()._setSMCarveout_EXPERIMENTAL(val);

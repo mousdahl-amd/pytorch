@@ -112,6 +112,11 @@ isLessThanSM80Device = torch.cuda.is_available() and torch.cuda.get_device_capab
 def _cudnn_supports_d256_attention():
     if not torch.cuda.is_available() or not torch.backends.cudnn.is_available():
         return False
+    if torch.version.hip is not None:
+        # hipDNN caps SDPA head dim at 128. Falling through would compare a
+        # gfx-derived capability tuple and MIOpen's version against cuDNN
+        # numbers, which happen to disagree today but not by design.
+        return False
     cudnn_version = torch.backends.cudnn.version() or 0
     device_capability = torch.cuda.get_device_capability()
     is_unsupported_sm107 = device_capability == (10, 7) and cudnn_version <= 92500
@@ -129,6 +134,8 @@ def _cudnn_d256_mixed_head_dim_bprop_unsupported():
 
 def _cudnn_supports_d192_attention():
     if not torch.cuda.is_available() or not torch.backends.cudnn.is_available():
+        return False
+    if torch.version.hip is not None:
         return False
     cudnn_version = torch.backends.cudnn.version() or 0
     device_capability = torch.cuda.get_device_capability()
@@ -3631,6 +3638,7 @@ class TestSDPAAccelerator(NNTestCase):
             expected = SDPBackend.MATH if unsupported else SDPBackend.CUDNN_ATTENTION
             self.assertEqual(torch._fused_sdp_choice(query, key, value), expected.value)
 
+    @skipIfRocm(msg="NVIDIA Blackwell-specific cuDNN decode disable")
     @unittest.skipIf(not PLATFORM_SUPPORTS_CUDNN_ATTENTION, "cuDNN Attention is not supported on this system")
     def test_cudnn_attention_decode_disabled_on_affected_blackwell(self, device):
         # See #193893 and #194927 for reasoning

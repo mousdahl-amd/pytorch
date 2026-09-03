@@ -54,6 +54,7 @@ set_bool(CAFFE2_STATIC_LINK_CUDA_INT CAFFE2_STATIC_LINK_CUDA)
 set_bool(AT_CUDNN_ENABLED CAFFE2_USE_CUDNN)
 set_bool(AT_CUSPARSELT_ENABLED CAFFE2_USE_CUSPARSELT)
 set_bool(AT_HIPSPARSELT_ENABLED CAFFE2_USE_HIPSPARSELT)
+set_bool(AT_HIPDNN_ENABLED CAFFE2_USE_HIPDNN)
 
 # The architectures CK SDPA kernels are built for: the candidates that
 # PYTORCH_ROCM_ARCH also asks for. The CK codegen target families, the ck_sdpa
@@ -121,6 +122,8 @@ file(GLOB hip_nvrtc_stub_h CONFIGURE_DEPENDS "hip/nvrtc_stub/*.h")
 file(GLOB hip_nvrtc_stub_cpp CONFIGURE_DEPENDS "hip/nvrtc_stub/*.cpp")
 file(GLOB miopen_h CONFIGURE_DEPENDS "miopen/*.h")
 file(GLOB miopen_cpp CONFIGURE_DEPENDS "miopen/*.cpp")
+file(GLOB hipdnn_h CONFIGURE_DEPENDS "hipdnn/*.h")
+file(GLOB hipdnn_cpp CONFIGURE_DEPENDS "hipdnn/*.cpp")
 
 file(GLOB mkl_cpp CONFIGURE_DEPENDS "mkl/*.cpp")
 file(GLOB mkldnn_cpp CONFIGURE_DEPENDS "mkldnn/*.cpp")
@@ -712,6 +715,7 @@ if(USE_ROCM)
     ${native_miopen_cpp}
     ${native_cudnn_hip_cpp}
     ${miopen_cpp}
+    ${hipdnn_cpp}
     ${all_hip_cpp}
   )
 endif()
@@ -1010,7 +1014,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake-exports/ATenConfig.cmake"
 
 set(INSTALL_HEADERS ${base_h} ${ATen_CORE_HEADERS} ${native_nested_h} ${ATen_TRANSFORMER_HEADERS})
 if(NOT INTERN_BUILD_MOBILE)
-  list(APPEND INSTALL_HEADERS ${native_h} ${native_cpu_h} ${native_ao_sparse_h} ${native_quantized_h} ${cuda_h} ${native_cuda_h} ${native_hip_h} ${cudnn_h} ${hip_h} ${xpu_h} ${mps_h} ${native_kleidiai_h} ${native_mps_h} ${native_utils_h} ${miopen_h})
+  list(APPEND INSTALL_HEADERS ${native_h} ${native_cpu_h} ${native_ao_sparse_h} ${native_quantized_h} ${cuda_h} ${native_cuda_h} ${native_hip_h} ${cudnn_h} ${hip_h} ${xpu_h} ${mps_h} ${native_kleidiai_h} ${native_mps_h} ${native_utils_h} ${miopen_h} ${hipdnn_h})
   # Metal
   if(USE_PYTORCH_METAL_EXPORT)
     # Add files needed from exporting metal models(optimized_for_mobile)

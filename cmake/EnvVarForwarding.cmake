@@ -60,6 +60,8 @@
 #   USE_ROCM_CK_GEMM=1       builds the CK GEMM backend on ROCm
 #   USE_ROCM_CK_SDPA=1       builds the CK SDPA backend on ROCm
 #   USE_ROCM_CK_SDPA_GFX12=1 enables CK SDPA for targeted gfx12 architectures
+#   USE_HIPDNN=0             disables the hipDNN-backed cuDNN-compatible SDPA
+#                            backend on ROCm (SDPBackend::CUDNN_ATTENTION)
 #   USE_LAYERNORM_FAST_RECIPROCAL  fast reciprocals for layer norm (default on)
 #   USE_MIMALLOC             static-link mimalloc into c10 (default: Windows/AArch64)
 #   USE_CUSTOM_DEBINFO="a.cpp;b.cpp"  build debug info only for the listed files
@@ -95,6 +97,8 @@
 #   MIOPEN_PATH              MIOpen install root (read from env in LoadHIP.cmake).
 #                            NOTE: the old MIOPEN_LIB_DIR/INCLUDE_DIR/LIBRARY env
 #                            vars are no longer used.
+#   HIPDNN_PATH              hipDNN install root, when it lives outside ROCM_PATH
+#                            (read from env in LoadHIP.cmake)
 #   NCCL_ROOT / NCCL_LIB_DIR / NCCL_INCLUDE_DIR   nccl location (read from env in
 #                            cmake/Modules/FindNCCL.cmake)
 #   ACL_ROOT_DIR             Arm Compute Library location (read from env in

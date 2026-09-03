@@ -122,6 +122,10 @@ struct TORCH_API CUDAHooksInterface : AcceleratorHooksInterface {
     return false;
   }
 
+  virtual bool hasHipDNNSDPA() const {
+    return false;
+  }
+
   virtual bool hasCKGEMM() const {
     return false;
   }

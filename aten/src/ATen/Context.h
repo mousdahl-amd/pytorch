@@ -211,6 +211,9 @@ class TORCH_API Context {
   static bool hasCKSDPA() {
     return detail::getCUDAHooks().hasCKSDPA();
   }
+  static bool hasHipDNNSDPA() {
+    return detail::getCUDAHooks().hasHipDNNSDPA();
+  }
   static bool hasCKGEMM() {
     return detail::getCUDAHooks().hasCKGEMM();
   }

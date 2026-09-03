@@ -65,6 +65,13 @@ if(WIN32)
   endif()
 endif()
 
+# hipDNN normally lives inside ROCM_PATH, so it is found via CMAKE_PREFIX_PATH.
+# Only honour an explicit override; setting hipdnn_frontend_DIR unconditionally
+# would shadow the in-prefix install.
+if(DEFINED ENV{HIPDNN_PATH})
+  set(hipdnn_frontend_DIR $ENV{HIPDNN_PATH}/lib/cmake/hipdnn_frontend)
+endif()
+
 torch_hip_get_arch_list(PYTORCH_ROCM_ARCH)
 if(PYTORCH_ROCM_ARCH STREQUAL "")
   message(FATAL_ERROR "No GPU arch specified for ROCm build. Please use PYTORCH_ROCM_ARCH environment variable to specify GPU archs to build for.")
@@ -370,6 +377,25 @@ if(PYTORCH_FOUND_HIP)
   # ROCm 8.0 and later requires libhipcxx! This should be marked as
   # 'REQUIRED' once minimal ROCm version is bumped to 8.0 or later.
   find_package_and_print_version(libhipcxx)
+
+  # hipDNN backs the cuDNN-compatible SDPA path (SDPBackend::CUDNN_ATTENTION).
+  # Its cudnn_compatibility component only gates header installation, so the
+  # component being absent means the shim headers were not installed.
+  if(USE_HIPDNN)
+    find_package_and_print_version(hipdnn_frontend CONFIG COMPONENTS cudnn_compatibility)
+    if(NOT hipdnn_frontend_FOUND)
+      message(WARNING
+        "USE_HIPDNN is ON but hipdnn_frontend (with the cudnn_compatibility "
+        "component) was not found under ${ROCM_PATH}. Disabling USE_HIPDNN; "
+        "SDPBackend::CUDNN_ATTENTION will be unavailable on ROCm.")
+      caffe2_update_option(USE_HIPDNN OFF)
+    elseif(NOT HIPDNN_ENABLE_SDPA)
+      message(WARNING
+        "hipdnn_frontend was found but was built with HIPDNN_ENABLE_SDPA=OFF, "
+        "so it exposes no SDPA nodes. Disabling USE_HIPDNN.")
+      caffe2_update_option(USE_HIPDNN OFF)
+    endif()
+  endif()
 
   list(REMOVE_DUPLICATES ROCM_INCLUDE_DIRS)
 

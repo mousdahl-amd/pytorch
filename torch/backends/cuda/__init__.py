@@ -19,6 +19,7 @@ __all__ = [
     "blas_workspace_size",
     "preferred_rocm_fa_library",
     "is_ck_sdpa_available",
+    "is_hipdnn_sdpa_available",
     "cufft_plan_cache",
     "matmul",
     "SDPAParams",
@@ -508,6 +509,20 @@ def is_ck_sdpa_available() -> bool:
     """
     # pyrefly: ignore [missing-attribute]
     return torch._C._is_ck_sdpa_available()
+
+
+def is_hipdnn_sdpa_available() -> bool:
+    r"""
+    .. warning:: This flag is beta and subject to change.
+
+    Returns whether hipDNN may be used as the backend for
+    scaled-dot-product-attention on ROCm, i.e. whether
+    :attr:`~torch.nn.attention.SDPBackend.CUDNN_ATTENTION` was built.
+    Availability on the current device additionally depends on the GPU
+    architecture; use :func:`can_use_cudnn_attention` for a per-input answer.
+    """
+    # pyrefly: ignore [missing-attribute]
+    return torch._C._is_hipdnn_sdpa_available()
 
 
 def flash_sdp_enabled():

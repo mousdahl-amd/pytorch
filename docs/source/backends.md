@@ -161,6 +161,11 @@ These backends include:
 ```
 
 ```{eval-rst}
+.. autofunction:: torch.backends.cuda.is_hipdnn_sdpa_available
+```
+
+
+```{eval-rst}
 .. autofunction:: torch.backends.cuda.preferred_linalg_library
 ```
 
@@ -223,6 +228,13 @@ These backends include:
 ```{eval-rst}
 .. autofunction:: torch.backends.cuda.can_use_cudnn_attention
 ```
+
+On ROCm, :attr:`~torch.nn.attention.SDPBackend.CUDNN_ATTENTION` is served by
+hipDNN's cuDNN-compatibility layer and is supported on gfx942 and gfx950 only
+(gfx942 only when gradients are required). It is never selected by the default
+backend priority order; request it explicitly with
+:func:`torch.nn.attention.sdpa_kernel`.
+
 
 ```{eval-rst}
 .. autofunction:: torch.backends.cuda.sdp_kernel

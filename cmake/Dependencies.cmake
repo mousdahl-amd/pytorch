@@ -1182,6 +1182,16 @@ if(USE_ROCM)
       caffe2_update_option(USE_HIPSPARSELT OFF)
     endif()
 
+    set(CAFFE2_USE_HIPDNN OFF)
+    if(USE_HIPDNN AND hipdnn_frontend_FOUND)
+      # The imported target carries the shim include dir and re-publishes
+      # HIPDNN_ENABLE_SDPA as an INTERFACE compile definition.
+      list(APPEND Caffe2_PUBLIC_HIP_DEPENDENCY_LIBS hipdnn_frontend)
+      set(CAFFE2_USE_HIPDNN ON)
+    elseif(USE_HIPDNN)
+      caffe2_update_option(USE_HIPDNN OFF)
+    endif()
+
     # hipfile only ships with ROCm 7.14 and above, disable the option if not found
     if(USE_CUFILE AND NOT hipfile_FOUND)
       caffe2_update_option(USE_CUFILE OFF)
