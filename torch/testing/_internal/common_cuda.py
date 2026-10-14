@@ -279,9 +279,6 @@ def evaluate_platform_supports_efficient_attention():
 
 def evaluate_platform_supports_cudnn_attention():
     if TEST_WITH_ROCM:
-        # Backed by hipDNN's cuDNN-compatibility shim. TEST_CUDNN_VERSION is
-        # MIOpen's version on ROCm, and SM80OrLater reads the gfx arch, so
-        # neither of the CUDA-side terms is meaningful here.
         return (
             torch.backends.cuda.is_hipdnn_sdpa_available()
             and evaluate_gfx_arch_within(["gfx942", "gfx950"])

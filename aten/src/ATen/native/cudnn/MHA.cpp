@@ -9,8 +9,6 @@
 #include <cudnn_frontend_version.h>
 #endif
 #elif AT_HIPDNN_ENABLED()
-// Supplies <cudnn_frontend.h>'s surface, the `cudnn_frontend` namespace, and
-// CUDNN_VERSION / CUDNN_FRONTEND_VERSION from hipDNN's compatibility shim.
 #include <ATen/hipdnn/cudnn_compat.h>
 #endif
 
@@ -168,7 +166,7 @@ void run_cudnn_SDP_bprop_nestedtensor(
 } // namespace at
 
 #else // a cudnn-frontend-compatible backend is available: cuDNN >= 8900 with
-      // frontend >= 10100, or hipDNN's compatibility shim
+      // frontend >= 10100
 #if AT_CUDNN_ENABLED()
 #include <cudnn_frontend.h>
 #endif
@@ -184,6 +182,7 @@ void run_cudnn_SDP_bprop_nestedtensor(
 #include <ATen/cuda/Exceptions.h>
 #include <ATen/detail/CUDAHooksInterface.h>
 
+#include <ATen/ExpandUtils.h>
 #include <ATen/TensorUtils.h>
 #include <ATen/native/utils/ParamsHash.h>
 
@@ -209,8 +208,6 @@ namespace fe = cudnn_frontend;
 constexpr uint8_t MAX_MHA_DIM = 4;
 
 // Works around a cuDNN dropout bug on SM 10.0 that wants int64 seed/offset.
-// HIP reports the gfx arch through the same major/minor fields (gfx942 is 9.4),
-// so this must never fire on ROCm, where the bug does not exist.
 static bool needs_int64_dropout_state() {
 #if AT_HIPDNN_ENABLED()
   return false;
@@ -733,7 +730,8 @@ auto fixSizeOneDimStrideSDPA(
 
 } // namespace
 
-std::unique_ptr<fe::graph::Graph> build_graph(
+// Describes the graph without touching the backend.
+std::unique_ptr<fe::graph::Graph> describe_graph(
     int64_t b,
     int64_t h,
     int64_t s_q,
@@ -751,8 +749,7 @@ std::unique_ptr<fe::graph::Graph> build_graph(
     Tensor& softmaxstats,
     Tensor& o,
     Tensor& dropoutseed,
-    Tensor& dropoutoffset,
-    cudnnHandle_t& handle) {
+    Tensor& dropoutoffset) {
   auto dtype = fe::DataType_t::HALF;
   if (q.scalar_type() == kBFloat16) {
     dtype = fe::DataType_t::BFLOAT16;
@@ -926,6 +923,49 @@ std::unique_ptr<fe::graph::Graph> build_graph(
       Stats->set_dim(softmaxstats.sizes().vec());
     }
   }
+
+  return mha_graph;
+}
+
+std::unique_ptr<fe::graph::Graph> build_graph(
+    int64_t b,
+    int64_t h,
+    int64_t s_q,
+    int64_t s_kv,
+    int64_t d_qk,
+    int64_t d_v,
+    float scaling_factor,
+    bool return_softmaxstats,
+    bool is_causal,
+    double dropout_probability,
+    const Tensor& q,
+    const Tensor& k,
+    const Tensor& v,
+    const std::optional<Tensor>& attn_bias,
+    Tensor& softmaxstats,
+    Tensor& o,
+    Tensor& dropoutseed,
+    Tensor& dropoutoffset,
+    cudnnHandle_t& handle) {
+  auto mha_graph = describe_graph(
+      b,
+      h,
+      s_q,
+      s_kv,
+      d_qk,
+      d_v,
+      scaling_factor,
+      return_softmaxstats,
+      is_causal,
+      dropout_probability,
+      q,
+      k,
+      v,
+      attn_bias,
+      softmaxstats,
+      o,
+      dropoutseed,
+      dropoutoffset);
 
   AT_CUDNN_FRONTEND_CHECK(mha_graph->validate());
   AT_CUDNN_FRONTEND_CHECK(mha_graph->build_operation_graph(handle));
@@ -1162,7 +1202,8 @@ std::unique_ptr<fe::graph::Graph> build_graph_nestedtensor(
   return mha_graph;
 }
 
-std::unique_ptr<fe::graph::Graph> build_graph_backward(
+// See describe_graph: description only, no backend work.
+std::unique_ptr<fe::graph::Graph> describe_graph_backward(
     int64_t b,
     int64_t h,
     int64_t s_q,
@@ -1183,8 +1224,7 @@ std::unique_ptr<fe::graph::Graph> build_graph_backward(
     Tensor& dK,
     Tensor& dV,
     const Tensor& dropoutseed,
-    const Tensor& dropoutoffset,
-    cudnnHandle_t& handle) {
+    const Tensor& dropoutoffset) {
   auto dtype = fe::DataType_t::HALF;
   if (q.scalar_type() == kBFloat16) {
     dtype = fe::DataType_t::BFLOAT16;
@@ -1365,6 +1405,55 @@ std::unique_ptr<fe::graph::Graph> build_graph_backward(
     Do->set_dim(dO.sizes().vec()).set_stride(dO.strides().vec());
     Stats->set_dim(softmaxstats.sizes().vec());
   }
+
+  return mha_graph;
+}
+
+std::unique_ptr<fe::graph::Graph> build_graph_backward(
+    int64_t b,
+    int64_t h,
+    int64_t s_q,
+    int64_t s_kv,
+    int64_t d_qk,
+    int64_t d_v,
+    float scaling_factor,
+    bool is_causal,
+    float dropout_probability,
+    const Tensor& q,
+    const Tensor& k,
+    const Tensor& v,
+    const std::optional<Tensor>& attn_bias,
+    const Tensor& o,
+    const Tensor& dO,
+    const Tensor& softmaxstats,
+    Tensor& dQ,
+    Tensor& dK,
+    Tensor& dV,
+    const Tensor& dropoutseed,
+    const Tensor& dropoutoffset,
+    cudnnHandle_t& handle) {
+  auto mha_graph = describe_graph_backward(
+      b,
+      h,
+      s_q,
+      s_kv,
+      d_qk,
+      d_v,
+      scaling_factor,
+      is_causal,
+      dropout_probability,
+      q,
+      k,
+      v,
+      attn_bias,
+      o,
+      dO,
+      softmaxstats,
+      dQ,
+      dK,
+      dV,
+      dropoutseed,
+      dropoutoffset);
 
   AT_CUDNN_FRONTEND_CHECK(mha_graph->validate());
   AT_CUDNN_FRONTEND_CHECK(mha_graph->build_operation_graph(handle));
@@ -1605,6 +1694,166 @@ std::unique_ptr<fe::graph::Graph> build_graph_backward_nestedtensor(
   AT_CUDNN_FRONTEND_CHECK(mha_graph->build_plans(handle));
   return mha_graph;
 }
+
+#if AT_HIPDNN_ENABLED()
+namespace {
+
+using SDPASupportCache = std::
+    unordered_map<MHACacheKeyWrapper, bool, ParamsWrapperHash<MHACacheKeyWrapper>>;
+
+// Thread-local and deliberately leaked, for the same reasons as the graph
+// caches above.
+SDPASupportCache& getSDPASupportCache_() {
+  thread_local SDPASupportCache* instance{new SDPASupportCache()};
+  return *instance;
+}
+
+Tensor as_meta(const Tensor& t) {
+  return at::empty_strided(
+      t.sizes(), t.strides(), t.options().device(at::kMeta));
+}
+
+} // namespace
+
+bool cudnn_sdpa_is_supported(
+    int64_t b,
+    int64_t h,
+    int64_t s_q,
+    int64_t s_kv,
+    int64_t d_qk,
+    int64_t d_v,
+    const Tensor& q,
+    const Tensor& k,
+    const Tensor& v,
+    const std::optional<Tensor>& attn_mask,
+    double dropout_probability,
+    bool is_causal,
+    bool requires_grad) {
+  Tensor q_ = as_meta(q);
+  Tensor k_ = as_meta(k);
+  Tensor v_ = as_meta(v);
+  // Reproduce what the bias looks like by the time run_cudnn_SDP_fprop sees
+  // it: scaled_dot_product_attention converts a bool mask to an additive one
+  // in the query dtype (convert_boolean_attn_mask), then the cuDNN op expands
+  // it to 4D. Probing the raw mask would describe a different graph, and a
+  // bool mask would throw out of bias_data_type().
+  std::optional<Tensor> bias_;
+  if (attn_mask.has_value()) {
+    Tensor mask = as_meta(attn_mask.value());
+    if (mask.scalar_type() == kBool) {
+      // The conversion is an at::where, which has no C++ meta kernel. Its
+      // output layout is TensorIterator's, which infer_dense_strides mirrors.
+      mask = at::empty_strided(
+          mask.sizes(),
+          infer_dense_strides(mask.sizes(), mask.strides()),
+          q_.options());
+    }
+    bias_ = expand_attn_bias_for_cudnn(mask, b, s_q, s_kv);
+  }
+
+  Tensor o_;
+  alloc_with_matching_layout(q_, o_, {b, h, s_q, d_v});
+  const bool use_ragged =
+      use_ragged_in_dense(q_, k_, v_, o_, bias_.has_value());
+  // The forward emits stats whenever a backward will consume them.
+  const bool return_softmaxstats = requires_grad;
+  const auto stats_opts = q_.options().dtype(kFloat);
+  Tensor stats_ = use_ragged
+      ? at::empty({b, s_q, h, 1}, stats_opts).transpose(1, 2)
+      : at::empty({b, h, s_q, 1}, stats_opts);
+  Tensor seed_ =
+      at::empty({}, at::TensorOptions().dtype(kLong).device(at::kMeta));
+  Tensor offset_ =
+      at::empty({}, at::TensorOptions().dtype(kLong).device(at::kMeta));
+
+  const Tensor no_dO;
+  MHACacheKeyWrapper key(
+      b,
+      h,
+      s_q,
+      s_kv,
+      d_qk,
+      d_v,
+      q_,
+      k_,
+      v_,
+      bias_,
+      o_,
+      no_dO,
+      stats_,
+      dropout_probability,
+      is_causal ? CausalMask::TOP_LEFT : CausalMask::NONE,
+      return_softmaxstats,
+      /*is_nested=*/false);
+
+  auto& cache = getSDPASupportCache_();
+  {
+    const auto it = cache.find(key);
+    if (it != cache.end()) {
+      return it->second;
+    }
+  }
+
+  cudnnHandle_t handle = getCudnnHandle();
+  // Does not affect supportability; only the scale tensor's dtype reaches the
+  // description.
+  constexpr float kProbeScale = 1.0f;
+
+  auto fwd = describe_graph(
+      b,
+      h,
+      s_q,
+      s_kv,
+      d_qk,
+      d_v,
+      kProbeScale,
+      return_softmaxstats,
+      is_causal,
+      dropout_probability,
+      q_,
+      k_,
+      v_,
+      bias_,
+      stats_,
+      o_,
+      seed_,
+      offset_);
+  bool supported = fwd->is_supported_ext(handle).is_good();
+
+  if (supported && requires_grad) {
+    Tensor dQ = at::empty_like(q_);
+    Tensor dK = at::empty_like(k_);
+    Tensor dV = at::empty_like(v_);
+    Tensor dO = as_meta(o_);
+    auto bwd = describe_graph_backward(
+        b,
+        h,
+        s_q,
+        s_kv,
+        d_qk,
+        d_v,
+        kProbeScale,
+        is_causal,
+        static_cast<float>(dropout_probability),
+        q_,
+        k_,
+        v_,
+        bias_,
+        o_,
+        dO,
+        stats_,
+        dQ,
+        dK,
+        dV,
+        seed_,
+        offset_);
+    supported = bwd->is_supported_ext(handle).is_good();
+  }
+
+  cache.emplace(key, supported);
+  return supported;
+}
+#endif // AT_HIPDNN_ENABLED()
 
 void run_cudnn_SDP_fprop(
     int64_t b,

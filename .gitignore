@@ -106,6 +106,7 @@ torch/lib/*.pdb
 torch/lib/*.so*
 torch/lib/protobuf*.pc
 torch/lib/build
+torch/lib/aotriton.images/
 torch/lib/caffe2/
 torch/lib/cmake
 torch/lib/include
@@ -136,6 +137,34 @@ aten/src/ATen/native/transformers/hip/flash_attn/ck/fwd_blob*
 aten/src/ATen/native/transformers/hip/flash_attn/ck/bwd_blob*
 aten/src/ATen/native/transformers/hip/flash_attn/ck/fmha_fwd_api*
 aten/src/ATen/native/transformers/hip/flash_attn/ck/fmha_bwd_api*
+
+aten/src/ATen/hip/*
+!aten/src/ATen/hip/impl/
+aten/src/ATen/native/hip/*
+!aten/src/ATen/native/hip/bgemm_kernels/
+!aten/src/ATen/native/hip/ck_*
+aten/src/ATen/native/transformers/hip/*
+!aten/src/ATen/native/transformers/hip/flash_attn/
+!aten/src/ATen/native/transformers/hip/aotriton_adapter.h
+!aten/src/ATen/native/transformers/hip/aotriton_versions.h
+!aten/src/ATen/native/transformers/hip/gemm_kernel_utils.h
+c10/hip/*
+!c10/hip/CMakeLists.txt
+aten/src/ATen/native/cudnn/hip/
+aten/src/ATen/native/nested/hip/
+aten/src/ATen/native/quantized/cudnn/hip/
+aten/src/ATen/native/quantized/hip/
+aten/src/ATen/native/sparse/hip/
+aten/src/ATen/test/hip/
+aten/src/ATen/test/test_install/hip/
+aten/src/THH/
+binaries/hip/
+caffe2/core/hip/
+caffe2/serialize/hip/
+caffe2/utils/hip/
+caffe2/utils/threadpool/hip/
+test/cpp/c10d/hip/
+test/cpp/c10d/example/hip/
 # Root level file used in CI to specify certain env configs.
 # E.g., see .circleci/config.yaml
 env

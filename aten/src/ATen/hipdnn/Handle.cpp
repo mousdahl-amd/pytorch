@@ -23,9 +23,9 @@ void createHipdnnHandle(cudnnHandle_t* handle) {
 }
 
 void destroyHipdnnHandle(cudnnHandle_t /* handle */) {
-  // Left deliberately empty, matching ATen/miopen/Handle.cpp and
-  // ATen/cudnn/Handle.cpp: at process teardown the GPU context can already be
-  // gone by the time these pooled handles are reclaimed.
+  // Left deliberately empty, matching ATen/cudnn/Handle.cpp: at process
+  // teardown the GPU context can already be gone by the time these pooled
+  // handles are reclaimed.
 }
 
 using HipdnnPoolType = at::cuda::DeviceThreadHandlePool<

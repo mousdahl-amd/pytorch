@@ -3413,11 +3413,6 @@ PYTORCH_SPECIFIC_MAPPINGS = collections.OrderedDict([
     ("cudnnRNNMode_t", "miopenRNNMode_t"),
     ("magma_queue_create_from_cuda", "magma_queue_create_from_hip"),
     # TODO: Remove these. They were necessary for Meta-internal builds.
-    # cudnnHandle_t is deliberately NOT mapped: ATen/native/cudnn/MHA.cpp is
-    # hipified and, when USE_HIPDNN is on, its real branch compiles against
-    # hipDNN's cuDNN-compatibility shim, where cudnnHandle_t is a distinct type
-    # from miopenHandle_t. Every other hipified user of the spelling sits in an
-    # AT_CUDNN_ENABLED()-disabled branch.
     ("cudnnCreate", "miopenCreate"),
     ("cudnnDestroy", "miopenDestroy"),
     ("cudnnSetStream", "miopenSetStream"),

@@ -1184,8 +1184,6 @@ if(USE_ROCM)
 
     set(CAFFE2_USE_HIPDNN OFF)
     if(USE_HIPDNN AND hipdnn_frontend_FOUND)
-      # The imported target carries the shim include dir and re-publishes
-      # HIPDNN_ENABLE_SDPA as an INTERFACE compile definition.
       list(APPEND Caffe2_PUBLIC_HIP_DEPENDENCY_LIBS hipdnn_frontend)
       set(CAFFE2_USE_HIPDNN ON)
     elseif(USE_HIPDNN)

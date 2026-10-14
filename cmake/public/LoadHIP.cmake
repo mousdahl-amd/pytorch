@@ -65,9 +65,6 @@ if(WIN32)
   endif()
 endif()
 
-# hipDNN normally lives inside ROCM_PATH, so it is found via CMAKE_PREFIX_PATH.
-# Only honour an explicit override; setting hipdnn_frontend_DIR unconditionally
-# would shadow the in-prefix install.
 if(DEFINED ENV{HIPDNN_PATH})
   set(hipdnn_frontend_DIR $ENV{HIPDNN_PATH}/lib/cmake/hipdnn_frontend)
 endif()
@@ -378,9 +375,6 @@ if(PYTORCH_FOUND_HIP)
   # 'REQUIRED' once minimal ROCm version is bumped to 8.0 or later.
   find_package_and_print_version(libhipcxx)
 
-  # hipDNN backs the cuDNN-compatible SDPA path (SDPBackend::CUDNN_ATTENTION).
-  # Its cudnn_compatibility component only gates header installation, so the
-  # component being absent means the shim headers were not installed.
   if(USE_HIPDNN)
     find_package_and_print_version(hipdnn_frontend CONFIG COMPONENTS cudnn_compatibility)
     if(NOT hipdnn_frontend_FOUND)

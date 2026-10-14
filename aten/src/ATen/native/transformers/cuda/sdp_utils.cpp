@@ -26,6 +26,7 @@
 #endif
 #elif AT_HIPDNN_ENABLED()
 #include <ATen/hipdnn/cudnn_compat.h>
+#include <ATen/native/cudnn/hip/MHA.h>
 #endif
 
 #include <c10/core/SymBool.h>
@@ -93,9 +94,6 @@ bool priority_order_init_ = false;
 // Needs to be kept in-sync with test_fused_chocie in test_transformers.py
 bool check_prefer_cudnn_attention() {
 #if defined(USE_ROCM)
-  // HIP reports the gfx arch through dprops->major/minor (gfx942 is 9.4), so
-  // the SM check below would spuriously match and reorder the priority list
-  // for every ROCm user. hipDNN-backed SDPA stays explicitly opt-in.
   return false;
 #else
   static const bool prefer_cudnn = c10::utils::check_env("TORCH_CUDNN_SDPA_DEPRIORITIZED") != true;
@@ -744,51 +742,40 @@ bool check_cudnn_tensor_shapes(sdp_params const& params, bool debug) {
   const auto d_qk = params.query.sym_size(3);
   const auto d_v = params.value.sym_size(3);
 #if defined(USE_ROCM)
-  // hipDNN's SDPA engine has its own limits and none of the cuDNN version
-  // arithmetic below applies. versionRuntimeCuDNN() must not be called here
-  // either: on ROCm it reports MIOpen's version.
-  //
-  // These limits mirror the kernels hipDNN's ASM SDPA engine actually ships
-  // (hd128 and hd192x128, see the asm_kernels/<arch>/fmha_v3_fwd tree). They
-  // exist so that an unsupported shape declines here rather than throwing out
-  // of the graph build, which would defeat the fallback in select_sdp_backend
-  // for e.g. sdpa_kernel([CUDNN_ATTENTION, FLASH_ATTENTION]).
-  //
-  // TODO: hipDNN should expose a supported-head-dim query so this can be
-  // derived at runtime instead of tracking its kernel set by hand -- see
-  // aotriton_max_hdim() above for the precedent. Until then,
-  // TORCH_ROCM_HIPDNN_SDPA_ENABLE_EXPERIMENTAL=1 skips these shape filters and
-  // lets hipDNN decline (or succeed) on its own.
-  static const bool skip_hipdnn_shape_filters =
+  static const bool skip_hipdnn_probe =
       c10::utils::check_env("TORCH_ROCM_HIPDNN_SDPA_ENABLE_EXPERIMENTAL") == true;
-  if (!skip_hipdnn_shape_filters) {
-    constexpr int64_t max_hipdnn_head_dim = 128;
-    const bool supported_head_dims =
-        (d_qk <= max_hipdnn_head_dim && d_v <= max_hipdnn_head_dim) ||
-        (d_qk == 192 && d_v == 128);
-    if (!supported_head_dims) {
-      if (debug) {
-        TORCH_WARN(
-            "hipDNN SDPA supports head dim up to ", max_hipdnn_head_dim,
-            ", or d_qk 192 with d_v 128. Got d_qk: ", d_qk, ", d_v: ", d_v);
-      }
-      return false;
-    }
-    if (d_qk % 8 != 0 || d_v % 8 != 0) {
-      if (debug) {
-        TORCH_WARN(
-            "hipDNN SDPA requires head dim to be a multiple of 8. Got d_qk: ",
-            d_qk, ", d_v: ", d_v);
-      }
-      return false;
-    }
-    if (s_k <= 1) {
-      if (debug) {
-        TORCH_WARN("hipDNN SDPA does not support key/value sequence length 1.");
-      }
-      return false;
-    }
+  if (skip_hipdnn_probe) {
+    return true;
   }
+#if AT_HIPDNN_ENABLED()
+  if (!at::native::cudnn_sdpa_is_supported(
+          b.guard_int(__FILE__, __LINE__),
+          h.guard_int(__FILE__, __LINE__),
+          s_q.guard_int(__FILE__, __LINE__),
+          s_k.guard_int(__FILE__, __LINE__),
+          d_qk.guard_int(__FILE__, __LINE__),
+          d_v.guard_int(__FILE__, __LINE__),
+          params.query,
+          params.key,
+          params.value,
+          params.attn_mask,
+          params.dropout,
+          params.is_causal,
+          input_requires_grad(params))) {
+    if (debug) {
+      TORCH_WARN(
+          "hipDNN has no engine for this attention graph on the current "
+          "device (head dims ", d_qk, "/", d_v, ", requires_grad ",
+          input_requires_grad(params), ").");
+    }
+    return false;
+  }
+#else
+  (void)s_q;
+  (void)s_k;
+  (void)d_qk;
+  (void)d_v;
+#endif // AT_HIPDNN_ENABLED()
   return true;
 #else
   long cudnn_version = at::detail::getCUDAHooks().versionRuntimeCuDNN();
@@ -939,8 +926,6 @@ bool check_cudnn_d256_bprop_head_dim(
     return true;
   }
 #if defined(USE_ROCM)
-  // hipDNN head-dim limits are enforced in check_cudnn_tensor_shapes. Falling
-  // through would call versionRuntimeCuDNN(), which throws on ROCm.
   return true;
 #else
 
@@ -1048,27 +1033,8 @@ bool check_cudnn_layout(sdp_params const& params, bool debug) {
 
 bool check_cudnn_hardware_support(sdp_params const& params, bool debug) {
 #if defined(USE_ROCM)
-  // hipDNN ships SDPA kernels for gfx942 and gfx950 only, and the backward
-  // kernels for gfx942 only. Anything else declines inside hipDNN at plan
-  // creation, which would surface as a throw rather than a capability answer.
-  static const bool allow_experimental_archs =
-      c10::utils::check_env("TORCH_ROCM_HIPDNN_SDPA_ENABLE_EXPERIMENTAL") == true;
-  const auto& hooks = at::detail::getCUDAHooks();
-  if (!allow_experimental_archs && !hooks.isGPUArch({"gfx942", "gfx950"})) {
-    if (debug) {
-      TORCH_WARN(
-          "hipDNN SDPA is only supported on gfx942 and gfx950. Set "
-          "TORCH_ROCM_HIPDNN_SDPA_ENABLE_EXPERIMENTAL=1 to try it anyway.");
-    }
-    return false;
-  }
-  if (!allow_experimental_archs && input_requires_grad(params) &&
-      !hooks.isGPUArch({"gfx942"})) {
-    if (debug) {
-      TORCH_WARN("hipDNN SDPA backward is only supported on gfx942.");
-    }
-    return false;
-  }
+  (void)params;
+  (void)debug;
   return true;
 #else
   using sm80 = SMVersion<8, 0>;
@@ -1104,8 +1070,6 @@ bool check_cudnn_hardware_support(sdp_params const& params, bool debug) {
 
 bool check_for_nested_inputs(sdp_params const& params, bool debug) {
 #if defined(USE_ROCM)
-  // Ragged/varlen through hipDNN is not validated yet, and the SM-major test
-  // below would spuriously pass on gfx942 (which reports major 9).
   if (has_for_nested_inputs(params)) {
     if (debug) {
       TORCH_WARN("hipDNN SDPA does not support nested/ragged inputs.");
@@ -1225,8 +1189,6 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
   }
   return false;
 #elif !defined(USE_ROCM)
-  // Runtime-version arithmetic is cuDNN-only: versionRuntimeCuDNN() reports
-  // MIOpen's version on ROCm, and hipDNN's limits are checked per-constraint.
   static auto cudnn_version = at::detail::getCUDAHooks().versionRuntimeCuDNN();
   if (params.dropout > 0.0 && cudnn_version > 91100 && cudnn_version < 91400) {
     if (debug) {

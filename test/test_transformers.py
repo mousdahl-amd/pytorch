@@ -113,9 +113,6 @@ def _cudnn_supports_d256_attention():
     if not torch.cuda.is_available() or not torch.backends.cudnn.is_available():
         return False
     if torch.version.hip is not None:
-        # hipDNN caps SDPA head dim at 128. Falling through would compare a
-        # gfx-derived capability tuple and MIOpen's version against cuDNN
-        # numbers, which happen to disagree today but not by design.
         return False
     cudnn_version = torch.backends.cudnn.version() or 0
     device_capability = torch.cuda.get_device_capability()
