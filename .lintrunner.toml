@@ -1873,6 +1873,7 @@ exclude_patterns = [
     "aten/src/ATen/Context.h",
     "aten/src/ATen/Context.cpp",
     "aten/src/ATen/DLConvertor.cpp",
+    "aten/src/ATen/HipDNNConfig.h",  # the ROCm-only hipDNN SDPA gate
     "aten/src/ATen/core/Array.h",
     "aten/src/ATen/native/quantized/ConvUtils.h",
     "aten/src/ATen/native/sparse/SparseBlasImpl.cpp",  # triton implementation

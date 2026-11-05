@@ -14,7 +14,7 @@
 
 #include <c10/macros/Export.h>
 #include <hipdnn_compatibility/cudnn/cudnn_frontend.h>
-#include <hipdnn_frontend/version_number.h>
+#include <hipdnn_frontend/version.h>
 
 namespace cudnn_frontend = hipdnn_frontend::compatibility::cudnn_frontend;
 
