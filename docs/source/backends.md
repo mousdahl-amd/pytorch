@@ -230,7 +230,8 @@ These backends include:
 ```
 
 On ROCm, :attr:`~torch.nn.attention.SDPBackend.CUDNN_ATTENTION` is served by
-hipDNN's cuDNN-compatibility layer and is supported on gfx942 and gfx950 only
+hipDNN's cuDNN-compatibility layer when PyTorch is built against ROCm 10.3 or
+later with hipDNN available, and is supported on gfx942 and gfx950 only
 (gfx942 only when gradients are required). It is never selected by the default
 backend priority order; request it explicitly with
 :func:`torch.nn.attention.sdpa_kernel`.

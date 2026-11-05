@@ -4,6 +4,7 @@
 #include <ATen/Context.h>
 #include <ATen/DynamicLibrary.h>
 #include <ATen/cuda/CUDAConfig.h>
+#include <ATen/HipDNNConfig.h>
 #include <ATen/cuda/CUDADevice.h>
 #include <ATen/cuda/Exceptions.h>
 #include <ATen/cuda/PeerToPeerAccess.h>
@@ -185,7 +186,7 @@ bool CUDAHooks::hasCKSDPA() const {
 }
 
 bool CUDAHooks::hasHipDNNSDPA() const {
-#if defined(USE_ROCM) && defined(USE_HIPDNN)
+#if AT_HIPDNN_ENABLED()
     return true;
 #else
     return false;

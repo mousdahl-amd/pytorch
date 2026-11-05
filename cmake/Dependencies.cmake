@@ -1189,6 +1189,11 @@ if(USE_ROCM)
     elseif(USE_HIPDNN)
       caffe2_update_option(USE_HIPDNN OFF)
     endif()
+    # The C++ gate (ATen/HipDNNConfig.h) turns hipDNN on from ROCM_VERSION and
+    # the presence of its headers; tell it when this build does not link hipDNN.
+    if(NOT CAFFE2_USE_HIPDNN)
+      add_compile_definitions(AT_HIPDNN_DISABLED)
+    endif()
 
     # hipfile only ships with ROCm 7.14 and above, disable the option if not found
     if(USE_CUFILE AND NOT hipfile_FOUND)

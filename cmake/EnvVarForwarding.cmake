@@ -61,7 +61,8 @@
 #   USE_ROCM_CK_SDPA=1       builds the CK SDPA backend on ROCm
 #   USE_ROCM_CK_SDPA_GFX12=1 enables CK SDPA for targeted gfx12 architectures
 #   USE_HIPDNN=0             disables the hipDNN-backed cuDNN-compatible SDPA
-#                            backend on ROCm (SDPBackend::CUDNN_ATTENTION)
+#                            backend on ROCm (SDPBackend::CUDNN_ATTENTION);
+#                            it is off on ROCm older than 10.3
 #   USE_LAYERNORM_FAST_RECIPROCAL  fast reciprocals for layer norm (default on)
 #   USE_MIMALLOC             static-link mimalloc into c10 (default: Windows/AArch64)
 #   USE_CUSTOM_DEBINFO="a.cpp;b.cpp"  build debug info only for the listed files

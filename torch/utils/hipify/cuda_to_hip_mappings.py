@@ -3413,6 +3413,7 @@ PYTORCH_SPECIFIC_MAPPINGS = collections.OrderedDict([
     ("cudnnRNNMode_t", "miopenRNNMode_t"),
     ("magma_queue_create_from_cuda", "magma_queue_create_from_hip"),
     # TODO: Remove these. They were necessary for Meta-internal builds.
+    ("cudnnHandle_t", "miopenHandle_t"),
     ("cudnnCreate", "miopenCreate"),
     ("cudnnDestroy", "miopenDestroy"),
     ("cudnnSetStream", "miopenSetStream"),

@@ -1,6 +1,5 @@
 #pragma once
 #include <ATen/core/Tensor.h>
-#include <ATen/cuda/CUDAConfig.h>
 
 namespace at::native {
 
@@ -27,7 +26,8 @@ inline std::optional<Tensor> expand_attn_bias_for_cudnn(
   return bias.expand({b, h, s_q, s_kv});
 }
 
-#if AT_HIPDNN_ENABLED()
+// Whether hipDNN can serve this attention configuration (ROCm only; defined in
+// MHA.cpp when AT_HIPDNN_ENABLED()).
 bool cudnn_sdpa_is_supported(
     int64_t b,
     int64_t h,
@@ -42,7 +42,6 @@ bool cudnn_sdpa_is_supported(
     double dropout_probability,
     bool is_causal,
     bool requires_grad);
-#endif // AT_HIPDNN_ENABLED()
 
 void run_cudnn_SDP_fprop(
     int64_t b,

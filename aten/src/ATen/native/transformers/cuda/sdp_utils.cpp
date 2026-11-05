@@ -1,5 +1,6 @@
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
 #include <ATen/Context.h>
+#include <ATen/HipDNNConfig.h>
 #include <ATen/NestedTensorImpl.h>
 #include <ATen/TensorSubclassLikeUtils.h>
 #include <ATen/TensorUtils.h>

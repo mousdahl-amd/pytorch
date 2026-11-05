@@ -1,6 +1,7 @@
 #include <limits>
 
 #include <ATen/ATen.h>
+#include <ATen/HipDNNConfig.h>
 #include <ATen/cuda/CUDAConfig.h>
 
 #if AT_CUDNN_ENABLED()
@@ -204,6 +205,11 @@ void run_cudnn_SDP_bprop_nestedtensor(
 namespace at::native {
 
 namespace fe = cudnn_frontend;
+
+// The active backend's handle type, taken from getCudnnHandle() rather than
+// named: hipify maps cuDNN's handle type name to MIOpen's, which is not
+// hipDNN's.
+using sdpa_handle_t = decltype(getCudnnHandle());
 
 constexpr uint8_t MAX_MHA_DIM = 4;
 
@@ -946,7 +952,7 @@ std::unique_ptr<fe::graph::Graph> build_graph(
     Tensor& o,
     Tensor& dropoutseed,
     Tensor& dropoutoffset,
-    cudnnHandle_t& handle) {
+    sdpa_handle_t& handle) {
   auto mha_graph = describe_graph(
       b,
       h,
@@ -1002,7 +1008,7 @@ std::unique_ptr<fe::graph::Graph> build_graph_nestedtensor(
     Tensor& o,
     Tensor& dropoutseed,
     Tensor& dropoutoffset,
-    cudnnHandle_t& handle) {
+    sdpa_handle_t& handle) {
   auto dtype = fe::DataType_t::HALF;
   if (q.scalar_type() == kBFloat16) {
     dtype = fe::DataType_t::BFLOAT16;
@@ -1431,7 +1437,7 @@ std::unique_ptr<fe::graph::Graph> build_graph_backward(
     Tensor& dV,
     const Tensor& dropoutseed,
     const Tensor& dropoutoffset,
-    cudnnHandle_t& handle) {
+    sdpa_handle_t& handle) {
   auto mha_graph = describe_graph_backward(
       b,
       h,
@@ -1490,7 +1496,7 @@ std::unique_ptr<fe::graph::Graph> build_graph_backward_nestedtensor(
     Tensor& dV,
     const Tensor& dropoutseed,
     const Tensor& dropoutoffset,
-    cudnnHandle_t& handle) {
+    sdpa_handle_t& handle) {
   auto dtype = fe::DataType_t::HALF;
   if (q.scalar_type() == kBFloat16) {
     dtype = fe::DataType_t::BFLOAT16;
@@ -1794,7 +1800,7 @@ bool cudnn_sdpa_is_supported(
     }
   }
 
-  cudnnHandle_t handle = getCudnnHandle();
+  sdpa_handle_t handle = getCudnnHandle();
   // Does not affect supportability; only the scale tensor's dtype reaches the
   // description.
   constexpr float kProbeScale = 1.0f;
@@ -1927,7 +1933,7 @@ void run_cudnn_SDP_fprop(
     _dropoutoffset = dropoutoffset.to(kLong);
   }
 
-  cudnnHandle_t handle = getCudnnHandle();
+  sdpa_handle_t handle = getCudnnHandle();
 
   // NB: The key initialization will round up sequence length, stride data etc.
   // if use_ragged_in_dense is enabled (to allow multiple sequence lengths to
@@ -2038,7 +2044,7 @@ void run_cudnn_SDP_fprop_nestedtensor(
     Tensor& o,
     Tensor& dropoutseed,
     Tensor& dropoutoffset) {
-  cudnnHandle_t handle = getCudnnHandle();
+  sdpa_handle_t handle = getCudnnHandle();
   // Return well-formed outputs for 0-element inputs instead of undefined
   // tensors; empty KV attends to nothing, so o is zero and the LSE is -inf.
   if (!q.numel() || !k.numel() || !v.numel()) {
@@ -2314,7 +2320,7 @@ void run_cudnn_SDP_bprop(
     rag_off_lse = cum_seqlen_q.mul(softmaxstats.stride(-2));
   }
 
-  cudnnHandle_t handle = getCudnnHandle();
+  sdpa_handle_t handle = getCudnnHandle();
   MHACacheKeyWrapper key(
       b,
       h,
@@ -2492,7 +2498,7 @@ void run_cudnn_SDP_bprop_nestedtensor(
     _dropoutoffset = dropoutoffset.to(kLong);
   }
 
-  cudnnHandle_t handle = getCudnnHandle();
+  sdpa_handle_t handle = getCudnnHandle();
 
   MHACacheKeyWrapper key(
       b,

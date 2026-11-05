@@ -6,7 +6,7 @@
 #include <ATen/hip/detail/DeviceThreadHandles.h>
 #include <c10/hip/HIPStream.h>
 
-namespace at::native {
+namespace at::native::hipdnn {
 namespace {
 
 void checkHipdnnStatus(cudnnStatus_t status, const char* what) {
@@ -55,6 +55,6 @@ cudnnHandle_t getCudnnHandle() {
   return handle;
 }
 
-} // namespace at::native
+} // namespace at::native::hipdnn
 
 #endif // AT_HIPDNN_ENABLED()

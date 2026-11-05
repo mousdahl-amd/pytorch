@@ -54,7 +54,6 @@ set_bool(CAFFE2_STATIC_LINK_CUDA_INT CAFFE2_STATIC_LINK_CUDA)
 set_bool(AT_CUDNN_ENABLED CAFFE2_USE_CUDNN)
 set_bool(AT_CUSPARSELT_ENABLED CAFFE2_USE_CUSPARSELT)
 set_bool(AT_HIPSPARSELT_ENABLED CAFFE2_USE_HIPSPARSELT)
-set_bool(AT_HIPDNN_ENABLED CAFFE2_USE_HIPDNN)
 
 # The architectures CK SDPA kernels are built for: the candidates that
 # PYTORCH_ROCM_ARCH also asks for. The CK codegen target families, the ck_sdpa

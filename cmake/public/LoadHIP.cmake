@@ -375,7 +375,12 @@ if(PYTORCH_FOUND_HIP)
   # 'REQUIRED' once minimal ROCm version is bumped to 8.0 or later.
   find_package_and_print_version(libhipcxx)
 
-  if(USE_HIPDNN)
+  if(USE_HIPDNN AND ROCM_VERSION_DEV VERSION_LESS "10.3.0")
+    message(STATUS
+      "USE_HIPDNN off: hipDNN-backed SDPA requires ROCm 10.3 or later "
+      "(found ${ROCM_VERSION_DEV}).")
+    caffe2_update_option(USE_HIPDNN OFF)
+  elseif(USE_HIPDNN)
     find_package_and_print_version(hipdnn_frontend CONFIG COMPONENTS cudnn_compatibility)
     if(NOT hipdnn_frontend_FOUND)
       message(WARNING
