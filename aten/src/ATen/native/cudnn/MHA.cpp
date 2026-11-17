@@ -9,7 +9,7 @@
 #if defined(__has_include) && __has_include(<cudnn_frontend_version.h>)
 #include <cudnn_frontend_version.h>
 #endif
-#elif AT_HIPDNN_ENABLED()
+#elif AT_HIPDNN_CUDNN_COMPAT_ENABLED()
 #include <ATen/hipdnn/cudnn_compat.h>
 #endif
 
@@ -47,9 +47,10 @@ bool has_aligned_varlen_layout(const Tensor& tensor) {
 
 } // namespace at::native
 
-#if (!AT_CUDNN_ENABLED() && !AT_HIPDNN_ENABLED()) || !defined(CUDNN_VERSION) || \
-    (defined(CUDNN_VERSION) && CUDNN_VERSION < 8900) ||                    \
-    !defined(CUDNN_FRONTEND_VERSION) ||                                    \
+#if (!AT_CUDNN_ENABLED() && !AT_HIPDNN_CUDNN_COMPAT_ENABLED()) || \
+    !defined(CUDNN_VERSION) ||                                     \
+    (defined(CUDNN_VERSION) && CUDNN_VERSION < 8900) ||            \
+    !defined(CUDNN_FRONTEND_VERSION) ||                            \
     (defined(CUDNN_FRONTEND_VERSION) && CUDNN_FRONTEND_VERSION < 10100)
 namespace at {
 namespace native {
@@ -209,7 +210,7 @@ constexpr uint8_t MAX_MHA_DIM = 4;
 
 // Works around a cuDNN dropout bug on SM 10.0 that wants int64 seed/offset.
 static bool needs_int64_dropout_state() {
-#if AT_HIPDNN_ENABLED()
+#if AT_HIPDNN_CUDNN_COMPAT_ENABLED()
   return false;
 #else
   const auto dprops = at::cuda::getCurrentDeviceProperties();

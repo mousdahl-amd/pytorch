@@ -25,7 +25,7 @@
 #if defined(__has_include) && __has_include(<cudnn_frontend_version.h>)
 #include <cudnn_frontend_version.h>
 #endif
-#elif AT_HIPDNN_ENABLED()
+#elif AT_HIPDNN_CUDNN_COMPAT_ENABLED()
 #include <ATen/hipdnn/cudnn_compat.h>
 #endif
 
@@ -1162,7 +1162,7 @@ bool is_cudnn_attention_decode_disabled() {
 }
 
 bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
-#if !AT_CUDNN_ENABLED() && !AT_HIPDNN_ENABLED()
+#if !AT_CUDNN_ENABLED() && !AT_HIPDNN_CUDNN_COMPAT_ENABLED()
   if (debug) {
     TORCH_WARN("Torch was not compiled with cuDNN attention.");
   }

@@ -122,7 +122,13 @@ struct TORCH_API CUDAHooksInterface : AcceleratorHooksInterface {
     return false;
   }
 
-  virtual bool hasHipDNNSDPA() const {
+  // hipDNN's native frontend was built in (ROCm only).
+  virtual bool hasHipDNN() const {
+    return false;
+  }
+
+  // SDPBackend::CUDNN_ATTENTION is served by hipDNN's cuDNN-compatibility layer.
+  virtual bool hasHipDNNCudnnAttention() const {
     return false;
   }
 

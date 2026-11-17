@@ -185,8 +185,16 @@ bool CUDAHooks::hasCKSDPA() const {
 #endif
 }
 
-bool CUDAHooks::hasHipDNNSDPA() const {
+bool CUDAHooks::hasHipDNN() const {
 #if AT_HIPDNN_ENABLED()
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool CUDAHooks::hasHipDNNCudnnAttention() const {
+#if AT_HIPDNN_CUDNN_COMPAT_ENABLED()
     return true;
 #else
     return false;

@@ -381,12 +381,13 @@ if(PYTORCH_FOUND_HIP)
       "(found ${ROCM_VERSION_DEV}).")
     caffe2_update_option(USE_HIPDNN OFF)
   elseif(USE_HIPDNN)
-    find_package_and_print_version(hipdnn_frontend CONFIG COMPONENTS cudnn_compatibility)
+    # The native frontend is required; the cuDNN-compatibility layer only adds
+    # SDPBackend::CUDNN_ATTENTION, so it is optional (ATen/HipDNNConfig.h checks it).
+    find_package_and_print_version(hipdnn_frontend CONFIG OPTIONAL_COMPONENTS cudnn_compatibility)
     if(NOT hipdnn_frontend_FOUND)
       message(WARNING
-        "USE_HIPDNN is ON but hipdnn_frontend (with the cudnn_compatibility "
-        "component) was not found under ${ROCM_PATH}. Disabling USE_HIPDNN; "
-        "SDPBackend::CUDNN_ATTENTION will be unavailable on ROCm.")
+        "USE_HIPDNN is ON but hipdnn_frontend was not found under ${ROCM_PATH}. "
+        "Disabling USE_HIPDNN; hipDNN-backed SDPA will be unavailable on ROCm.")
       caffe2_update_option(USE_HIPDNN OFF)
     elseif(NOT HIPDNN_ENABLE_SDPA)
       message(WARNING

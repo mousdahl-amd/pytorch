@@ -1,4 +1,4 @@
-#include <ATen/hipdnn/cudnn_compat.h>
+#include <ATen/hipdnn/Handle.h>
 
 #if AT_HIPDNN_ENABLED()
 
@@ -6,36 +6,36 @@
 #include <ATen/hip/detail/DeviceThreadHandles.h>
 #include <c10/hip/HIPStream.h>
 
-namespace at::native::hipdnn {
+namespace at::native {
 namespace {
 
-void checkHipdnnStatus(cudnnStatus_t status, const char* what) {
+void checkHipdnnStatus(hipdnnStatus_t status, const char* what) {
   TORCH_CHECK(
-      status == CUDNN_STATUS_SUCCESS,
+      status == HIPDNN_STATUS_SUCCESS,
       "hipDNN ",
       what,
       " failed: ",
-      cudnnGetErrorString(status));
+      hipdnnGetErrorString(status));
 }
 
-void createHipdnnHandle(cudnnHandle_t* handle) {
-  checkHipdnnStatus(cudnnCreate(handle), "cudnnCreate");
+void createHipdnnHandle(hipdnnHandle_t* handle) {
+  checkHipdnnStatus(hipdnnCreate(handle), "hipdnnCreate");
 }
 
-void destroyHipdnnHandle(cudnnHandle_t /* handle */) {
+void destroyHipdnnHandle(hipdnnHandle_t /* handle */) {
   // Left deliberately empty, matching ATen/cudnn/Handle.cpp: at process
   // teardown the GPU context can already be gone by the time these pooled
   // handles are reclaimed.
 }
 
 using HipdnnPoolType = at::cuda::DeviceThreadHandlePool<
-    cudnnHandle_t,
+    hipdnnHandle_t,
     createHipdnnHandle,
     destroyHipdnnHandle>;
 
 } // namespace
 
-cudnnHandle_t getCudnnHandle() {
+hipdnnHandle_t getHipdnnHandle() {
   c10::DeviceIndex device = 0;
   AT_CUDA_CHECK(at::cuda::GetDevice(&device));
 
@@ -50,11 +50,11 @@ cudnnHandle_t getCudnnHandle() {
 
   auto handle = myPoolWindow->reserve(device);
   checkHipdnnStatus(
-      cudnnSetStream(handle, at::cuda::getCurrentCUDAStream()),
-      "cudnnSetStream");
+      hipdnnSetStream(handle, at::cuda::getCurrentCUDAStream()),
+      "hipdnnSetStream");
   return handle;
 }
 
-} // namespace at::native::hipdnn
+} // namespace at::native
 
 #endif // AT_HIPDNN_ENABLED()

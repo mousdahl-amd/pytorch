@@ -3336,9 +3336,9 @@ Call this whenever a new thread is created in order to propagate values from
 #endif
   });
 
-  py_module.def("_is_hipdnn_sdpa_available", []() {
+  py_module.def("_is_cudnn_attention_hipdnn_available", []() {
 #ifdef USE_ROCM
-    return at::globalContext().hasHipDNNSDPA();
+    return at::globalContext().hasHipDNNCudnnAttention();
 #else
     return false;
 #endif

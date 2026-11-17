@@ -161,7 +161,7 @@ These backends include:
 ```
 
 ```{eval-rst}
-.. autofunction:: torch.backends.cuda.is_hipdnn_sdpa_available
+.. autofunction:: torch.backends.cuda.is_cudnn_attention_hipdnn_available
 ```
 
 

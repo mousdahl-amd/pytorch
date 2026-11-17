@@ -281,7 +281,7 @@ def evaluate_platform_supports_cudnn_attention():
     if TEST_WITH_ROCM:
         # Tests gated on PLATFORM_SUPPORTS_FUSED_ATTENTION expect mem-efficient attention,
         # so gfx11 parts that AOTriton does not cover are left out.
-        return torch.backends.cuda.is_hipdnn_sdpa_available() and (
+        return torch.backends.cuda.is_cudnn_attention_hipdnn_available() and (
             evaluate_gfx_arch_within(["gfx942", "gfx950"])
             or (evaluate_gfx_arch_within(["gfx11"]) and evaluate_platform_supports_efficient_attention())
         )
