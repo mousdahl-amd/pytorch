@@ -471,8 +471,8 @@ def preferred_rocm_fa_library(
     * If `"default"` is set then the default backend will be used wherever possible. Currently AOTriton.
     * If `"aotriton"` is set then AOTriton will be used wherever possible.
     * If `"ck"` is set then CK will be used wherever possible.
-    * If `"hipdnn"` is set then hipDNN will be used for the forward pass wherever possible. It requires
-      PyTorch built with hipDNN (ROCm 10.3 or later). Inputs that require grad do not use hipDNN yet.
+    * If `"hipdnn"` is set then hipDNN will be used wherever possible. It requires
+      PyTorch built with hipDNN (ROCm 10.3 or later).
     * When no input is given, this function returns the currently preferred library.
     * User may use the environment variable TORCH_ROCM_FA_PREFER_CK=1 to set the preferred library to CK
       globally.

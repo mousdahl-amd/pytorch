@@ -503,15 +503,17 @@ bool check_sm_version(cudaDeviceProp * dprops) {
 }
 
 #if USE_ROCM_ATTENTION
-// hipDNN serves the forward only, and its forward is never paired with another
-// library's backward (the dropout masks differ), so inputs that require grad
-// do not take it until its backward is wired.
-bool check_hipdnn_forward_only(sdp_params const& params, bool debug) {
-  if (input_requires_grad(params)) {
+// hipDNN's backward has no deterministic mode yet, so under
+// torch.use_deterministic_algorithms(True) inputs that require grad do not
+// take hipDNN.
+bool check_hipdnn_deterministic(sdp_params const& params, bool debug) {
+  auto& ctx = at::globalContext();
+  if (input_requires_grad(params) && ctx.deterministicAlgorithms() &&
+      !ctx.deterministicAlgorithmsWarnOnly()) {
     if (debug) {
       TORCH_WARN(
-          "Flash and memory-efficient attention through hipDNN do not support "
-          "inputs that require grad yet.");
+          "Flash and memory-efficient attention through hipDNN do not offer a "
+          "deterministic backward yet.");
     }
     return false;
   }
@@ -531,7 +533,7 @@ bool check_flash_attention_hardware_support(sdp_params const& params, bool debug
     // TODO: Flesh out sanity checks
     return true;
   } else if (preferred == at::ROCmFABackend::HipDNN) {
-    return check_hipdnn_forward_only(params, debug);
+    return check_hipdnn_deterministic(params, debug);
   } else {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
     if (hipSuccess != aotriton::v2::flash::check_gpu(stream)) {
@@ -594,7 +596,7 @@ bool check_mem_efficient_hardware_support(sdp_params const& params, bool debug) 
     // TODO: Flesh out sanity checks
     return true;
   } else if (preferred == at::ROCmFABackend::HipDNN) {
-    return check_hipdnn_forward_only(params, debug);
+    return check_hipdnn_deterministic(params, debug);
   } else {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
     if (hipSuccess != aotriton::v2::flash::check_gpu(stream)) {

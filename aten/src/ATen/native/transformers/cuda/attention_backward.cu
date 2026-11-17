@@ -61,6 +61,7 @@
 #include <aotriton/runtime.h>
 #endif
 #include <ATen/native/transformers/hip/flash_attn/ck/me_ck_api.h>
+#include <ATen/native/transformers/hip/flash_attn/hipdnn/sdpa_hipdnn.h>
 #endif
 #endif
 
@@ -587,12 +588,6 @@ _efficient_attention_backward(
     }
     return std::make_tuple(std::move(grad_q), std::move(grad_k), std::move(grad_v), std::move(grad_bias));
   }
-  // hipDNN's forward is not paired with another library's backward: the
-  // dropout masks differ. Until the hipDNN backward is wired, SDPA does not
-  // pick hipDNN for inputs that require grad.
-  TORCH_CHECK(
-      at::globalContext().getROCmFAPreferredBackend() != at::ROCmFABackend::HipDNN,
-      "Efficient attention backward is not available through hipDNN yet");
   if(at::globalContext().getROCmFAPreferredBackend() == at::ROCmFABackend::Ck)
   {
 #if defined(USE_ROCM_CK_SDPA)
@@ -635,6 +630,37 @@ _efficient_attention_backward(
     grad_bias = dBias;
 #else
     TORCH_CHECK(false, "Attempting to use CK mem_eff_backward backend in a build that has not built CK");
+#endif
+  } else if (at::globalContext().getROCmFAPreferredBackend() == at::ROCmFABackend::HipDNN) {
+#if AT_HIPDNN_ENABLED()
+    TORCH_CHECK(!num_splits_key.has_value() && !window_size.has_value(),
+              "Efficient attention through hipDNN does not support num_splits_key or window_size");
+    auto dbias = pytorch_flash::me_bwd_hipdnn(
+        grad_out,
+        query,
+        key,
+        value,
+        bias,
+        out,
+        cu_seqlens_q,
+        cu_seqlens_k,
+        max_seqlen_q,
+        max_seqlen_k,
+        logsumexp,
+        dropout_p,
+        philox_seed,
+        philox_offset,
+        custom_mask_type,
+        bias_requires_grad,
+        sdp::calculate_scale(query, scale).expect_float(),
+        grad_q,
+        grad_k,
+        grad_v);
+    if (bias_requires_grad) {
+      grad_bias = std::move(dbias);
+    }
+#else
+    TORCH_CHECK(false, "Attempting to use hipDNN mem_eff_backward backend in a build that has not built hipDNN");
 #endif
   } else {
 #ifndef DISABLE_AOTRITON

@@ -433,12 +433,30 @@ inline std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor> mha_bwd(
     const bool deterministic,
     const at::Tensor philox_seed,
     const at::Tensor philox_offset) {
-  // hipDNN's forward is not paired with another library's backward: the
-  // dropout masks differ. Until the hipDNN backward is wired, SDPA does not
-  // pick hipDNN for inputs that require grad.
-  TORCH_CHECK(
-      at::globalContext().getROCmFAPreferredBackend() != at::ROCmFABackend::HipDNN,
-      "FlashAttention backward is not available through hipDNN yet");
+#if AT_HIPDNN_ENABLED()
+  if (at::globalContext().getROCmFAPreferredBackend() ==
+      at::ROCmFABackend::HipDNN) {
+    return mha_bwd_hipdnn(
+        dout,
+        q,
+        k,
+        v,
+        out,
+        softmax_lse,
+        dq_,
+        dk_,
+        dv_,
+        alibi_slopes_,
+        p_dropout,
+        softmax_scale,
+        is_causal,
+        window_size_left,
+        window_size_right,
+        deterministic,
+        philox_seed,
+        philox_offset);
+  }
+#endif
 #if defined(USE_ROCM_CK_SDPA)
   if (at::globalContext().getROCmFAPreferredBackend() ==
       at::ROCmFABackend::Ck) {
@@ -526,9 +544,35 @@ inline std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor> mha_varlen_bwd
     const bool deterministic,
     const at::Tensor philox_seed,
     const at::Tensor philox_offset) {
-  TORCH_CHECK(
-      at::globalContext().getROCmFAPreferredBackend() != at::ROCmFABackend::HipDNN,
-      "FlashAttention backward is not available through hipDNN yet");
+#if AT_HIPDNN_ENABLED()
+  if (at::globalContext().getROCmFAPreferredBackend() ==
+      at::ROCmFABackend::HipDNN) {
+    return mha_varlen_bwd_hipdnn(
+        dout,
+        q,
+        k,
+        v,
+        out,
+        softmax_lse,
+        dq_,
+        dk_,
+        dv_,
+        cu_seqlens_q,
+        cu_seqlens_k,
+        alibi_slopes_,
+        max_seqlen_q,
+        max_seqlen_k,
+        p_dropout,
+        softmax_scale,
+        zero_tensors,
+        is_causal,
+        window_size_left,
+        window_size_right,
+        deterministic,
+        philox_seed,
+        philox_offset);
+  }
+#endif
 #if defined(USE_ROCM_CK_SDPA)
   if (at::globalContext().getROCmFAPreferredBackend() ==
       at::ROCmFABackend::Ck) {
