@@ -5700,11 +5700,8 @@ class TestSDPAAccelerator(NNTestCase):
         is_hopper_or_newer = device_capability and (device_capability[0] == 9 or device_capability[0] == 10)
         prefer_cudnn = prefer_cudnn and is_hopper_or_newer and cudnn_version > 91500
         if TEST_WITH_ROCM:
-            # sdp_utils.cpp puts hipDNN first on gfx950 and gfx11 unless deprioritized.
-            prefer_cudnn = (
-                os.environ.get("TORCH_CUDNN_SDPA_DEPRIORITIZED", "0") != "1"
-                and evaluate_gfx_arch_within(["gfx950", "gfx11"])
-            )
+            # sdp_utils.cpp keeps CUDNN_ATTENTION (hipDNN) out of the default order on ROCm.
+            prefer_cudnn = False
 
         # cuDNN is enabled by default on SM 9.0/10.0 with cuDNN > 9.15.0 (per #169849)
         # For older cuDNN versions or other architectures, Flash Attention is preferred

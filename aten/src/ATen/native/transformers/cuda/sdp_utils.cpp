@@ -94,15 +94,11 @@ bool priority_order_init_ = false;
 // Needs to be kept in-sync with test_fused_chocie in test_transformers.py
 bool check_prefer_cudnn_attention() {
 #if defined(USE_ROCM)
-#if AT_HIPDNN_ENABLED()
-  // hipDNN serves CUDNN_ATTENTION on ROCm. gfx942 is left out: hipDNN serves
-  // many forward graphs there but few backward ones.
-  static const bool prefer_cudnn = c10::utils::check_env("TORCH_CUDNN_SDPA_DEPRIORITIZED") != true;
-  // "gfx11" matches every gfx11 device, the members of the gfx11-generic target.
-  return prefer_cudnn && at::detail::getCUDAHooks().isGPUArch({"gfx950", "gfx11"});
-#else
+  // CUDNN_ATTENTION (hipDNN through its cuDNN-compatibility layer) stays opt-in on
+  // ROCm. hipDNN reaches the default order through flash and mem-efficient
+  // attention instead, whose selection asks hipDNN before choosing it and falls
+  // back to CK, then math.
   return false;
-#endif
 #else
   static const bool prefer_cudnn = c10::utils::check_env("TORCH_CUDNN_SDPA_DEPRIORITIZED") != true;
   if (!prefer_cudnn) {
