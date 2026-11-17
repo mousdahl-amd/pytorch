@@ -448,6 +448,7 @@ _ROCmFABackends = {
     "default": torch._C._ROCmFABackend.Default,
     "aotriton": torch._C._ROCmFABackend.AOTriton,
     "ck": torch._C._ROCmFABackend.Ck,
+    "hipdnn": torch._C._ROCmFABackend.HipDNN,
 }
 _ROCmFABackends_str = ", ".join(_ROCmFABackends.keys())
 
@@ -460,7 +461,7 @@ def preferred_rocm_fa_library(
 ) -> torch._C._ROCmFABackend:
     r"""
     [ROCm-only]
-    Override the backend PyTorch uses in ROCm environments for Flash Attention. Choose between AOTriton and CK
+    Override the backend PyTorch uses in ROCm environments for Flash Attention. Choose between AOTriton, CK and hipDNN
 
     .. warning:: This flag is experimental and subject to change.
 
@@ -470,6 +471,8 @@ def preferred_rocm_fa_library(
     * If `"default"` is set then the default backend will be used wherever possible. Currently AOTriton.
     * If `"aotriton"` is set then AOTriton will be used wherever possible.
     * If `"ck"` is set then CK will be used wherever possible.
+    * If `"hipdnn"` is set then hipDNN will be used for the forward pass wherever possible. It requires
+      PyTorch built with hipDNN (ROCm 10.3 or later). Inputs that require grad do not use hipDNN yet.
     * When no input is given, this function returns the currently preferred library.
     * User may use the environment variable TORCH_ROCM_FA_PREFER_CK=1 to set the preferred library to CK
       globally.

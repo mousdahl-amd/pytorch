@@ -7,7 +7,7 @@
 
 namespace at {
 
-enum class ROCmFABackend : int8_t { Default, AOTriton, Ck };
+enum class ROCmFABackend : int8_t { Default, AOTriton, Ck, HipDNN };
 
 inline std::string ROCmFABackendToString(at::ROCmFABackend backend) {
   switch (backend) {
@@ -17,6 +17,8 @@ inline std::string ROCmFABackendToString(at::ROCmFABackend backend) {
       return "at::ROCmFABackend::AOTriton";
     case ROCmFABackend::Ck:
       return "at::ROCmFABackend::Ck";
+    case ROCmFABackend::HipDNN:
+      return "at::ROCmFABackend::HipDNN";
     default:
       TORCH_CHECK(false, "Unknown ROCm flash attention backend")
   }

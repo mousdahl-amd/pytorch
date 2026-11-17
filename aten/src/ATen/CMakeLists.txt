@@ -400,6 +400,13 @@ if(USE_MEM_EFF_ATTENTION)
   list(APPEND ATen_ATTENTION_KERNEL_SRCS ${mem_eff_attention_cuda_kernels_cu})
 endif()
 
+# hipDNN SDPA forward (flash and memory-efficient attention); the sources
+# compile to nothing unless AT_HIPDNN_ENABLED().
+if(USE_ROCM AND (USE_FLASH_ATTENTION OR USE_MEM_EFF_ATTENTION))
+  file(GLOB flash_attention_hip_hipdnn_cpp CONFIGURE_DEPENDS "native/transformers/hip/flash_attn/hipdnn/*.cpp")
+  list(APPEND native_transformers_hip_cpp ${flash_attention_hip_hipdnn_cpp})
+endif()
+
 # MSLK
 IF(USE_MSLK)
   set(MSLK_THIRD_PARTY ${PROJECT_SOURCE_DIR}/third_party/mslk/external/)

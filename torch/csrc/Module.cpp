@@ -3318,7 +3318,8 @@ Call this whenever a new thread is created in order to propagate values from
   py::enum_<at::ROCmFABackend>(py_module, "_ROCmFABackend")
       .value("Default", at::ROCmFABackend::Default)
       .value("AOTriton", at::ROCmFABackend::AOTriton)
-      .value("Ck", at::ROCmFABackend::Ck);
+      .value("Ck", at::ROCmFABackend::Ck)
+      .value("HipDNN", at::ROCmFABackend::HipDNN);
 
   py_module.def("_set_rocm_fa_preferred_backend", [](at::ROCmFABackend b) {
     at::globalContext().setROCmFAPreferredBackend(b);

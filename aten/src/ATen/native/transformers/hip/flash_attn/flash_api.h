@@ -5,6 +5,8 @@
 #include <ATen/core/Tensor.h>
 #include <c10/util/Exception.h>
 
+#include <ATen/native/transformers/hip/flash_attn/hipdnn/sdpa_hipdnn.h>
+
 #define CHECK_NOSPARSE_CONTIGUOUS_CUDA(TENSOR)                            \
   TORCH_CHECK(TENSOR.is_cuda(), #TENSOR " must be a CUDA tensor");     \
   TORCH_CHECK(!TENSOR.is_sparse(), #TENSOR " must be a dense tensor"); \
@@ -333,6 +335,31 @@ mha_varlen_fwd(
     const float softcap,
     const bool return_softmax,
     std::optional<at::Generator> gen_) {
+#if AT_HIPDNN_ENABLED()
+  if (at::globalContext().getROCmFAPreferredBackend() ==
+      at::ROCmFABackend::HipDNN) {
+    return mha_varlen_fwd_hipdnn(
+        q,
+        k,
+        v,
+        out_,
+        cu_seqlens_q,
+        cu_seqlens_k,
+        seqused_k,
+        block_table_,
+        alibi_slopes_,
+        max_seqlen_q,
+        max_seqlen_k,
+        p_dropout,
+        softmax_scale,
+        zero_tensors,
+        is_causal,
+        window_size_left,
+        window_size_right,
+        return_softmax,
+        gen_);
+  }
+#endif
 #if defined(USE_ROCM_CK_SDPA)
   if (at::globalContext().getROCmFAPreferredBackend() ==
       at::ROCmFABackend::Ck) {
@@ -406,7 +433,12 @@ inline std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor> mha_bwd(
     const bool deterministic,
     const at::Tensor philox_seed,
     const at::Tensor philox_offset) {
-
+  // hipDNN's forward is not paired with another library's backward: the
+  // dropout masks differ. Until the hipDNN backward is wired, SDPA does not
+  // pick hipDNN for inputs that require grad.
+  TORCH_CHECK(
+      at::globalContext().getROCmFAPreferredBackend() != at::ROCmFABackend::HipDNN,
+      "FlashAttention backward is not available through hipDNN yet");
 #if defined(USE_ROCM_CK_SDPA)
   if (at::globalContext().getROCmFAPreferredBackend() ==
       at::ROCmFABackend::Ck) {
@@ -494,6 +526,9 @@ inline std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor> mha_varlen_bwd
     const bool deterministic,
     const at::Tensor philox_seed,
     const at::Tensor philox_offset) {
+  TORCH_CHECK(
+      at::globalContext().getROCmFAPreferredBackend() != at::ROCmFABackend::HipDNN,
+      "FlashAttention backward is not available through hipDNN yet");
 #if defined(USE_ROCM_CK_SDPA)
   if (at::globalContext().getROCmFAPreferredBackend() ==
       at::ROCmFABackend::Ck) {

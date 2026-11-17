@@ -100,6 +100,7 @@
 #include <aotriton/runtime.h>
 #endif
 #include <ATen/native/transformers/hip/flash_attn/ck/me_ck_api.h>
+#include <ATen/native/transformers/hip/flash_attn/hipdnn/sdpa_hipdnn.h>
 #endif
 #endif
 
@@ -131,6 +132,24 @@ mha_fwd(
     const float softcap,
     const bool return_softmax,
     std::optional<at::Generator> gen_) {
+#if AT_HIPDNN_ENABLED()
+  if (at::globalContext().getROCmFAPreferredBackend() ==
+      at::ROCmFABackend::HipDNN) {
+    return mha_fwd_hipdnn(
+        q,
+        k,
+        v,
+        out_,
+        alibi_slopes_,
+        p_dropout,
+        softmax_scale,
+        is_causal,
+        window_size_left,
+        window_size_right,
+        return_softmax,
+        gen_);
+  }
+#endif
 #if defined(USE_ROCM_CK_SDPA)
   if (at::globalContext().getROCmFAPreferredBackend() ==
       at::ROCmFABackend::Ck) {
@@ -1774,6 +1793,39 @@ std::tuple<Tensor, Tensor, Tensor, Tensor, c10::SymInt, c10::SymInt> _efficient_
     logsumexp = lse;
 #else
     TORCH_CHECK(false, "Attempting to use CK mem_eff_forward backend in a build that has not built CK");
+#endif
+  } else if (at::globalContext().getROCmFAPreferredBackend() ==
+             at::ROCmFABackend::HipDNN) {
+#if AT_HIPDNN_ENABLED()
+    TORCH_CHECK(
+        !seqlen_k.has_value() && !window_size.has_value(),
+        "Efficient attention through hipDNN does not support seqlen_k or window_size");
+    if (use_dropout && in_capture_stream) {
+      // Captured seed and offset are only known on the device.
+      at::cuda::philox::unpack_cudnn_wrapper(
+          philox_state,
+          seed_t.data_ptr<int64_t>(),
+          offset_t.data_ptr<int64_t>(),
+          stream);
+    }
+    logsumexp = pytorch_flash::me_fwd_hipdnn(
+        query,
+        key,
+        value,
+        bias,
+        seqstart_q,
+        seqstart_k,
+        max_seqlen_q,
+        max_seqlen_k,
+        dropout_p,
+        custom_mask_type,
+        compute_logsumexp,
+        softmax_scale,
+        seed_t,
+        offset_t,
+        res);
+#else
+    TORCH_CHECK(false, "Attempting to use hipDNN mem_eff_forward backend in a build that has not built hipDNN");
 #endif
   } else { // use aotriton
 #ifndef DISABLE_AOTRITON

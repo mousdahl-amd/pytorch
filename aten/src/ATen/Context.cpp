@@ -722,6 +722,13 @@ at::ROCmFABackend Context::getROCmFAPreferredBackend() {
   // We use aotriton backend as the default, for now.
   if(rocm_fa_preferred_backend == at::ROCmFABackend::Default) {
     rocm_fa_preferred_backend = at::ROCmFABackend::AOTriton;
+  } else if (rocm_fa_preferred_backend == at::ROCmFABackend::HipDNN) {
+    static const bool hasHipDNNFlag = hasHipDNN();
+    if (!hasHipDNNFlag) {
+      TORCH_WARN_ONCE(
+          "Cannot set preferred SDPA backend to hipDNN since PyTorch was not built with hipDNN");
+      rocm_fa_preferred_backend = at::ROCmFABackend::AOTriton;
+    }
   } else if (rocm_fa_preferred_backend == at::ROCmFABackend::Ck) {
     // This logic sits in the getter because it needs to validate
     // values set via env vars such as TORCH_ROCM_FA_PREFER_CK
@@ -750,6 +757,8 @@ void Context::setROCmFAPreferredBackend(at::ROCmFABackend b) {
       "Cannot set preferred SDPA backend to CK since following conditions are not true: ",
       "architecture supported for CK SDPA: ", ckSDPASupportedFlag,
       ", PyTorch built with CK SDPA support: ", hasCKSDPAFlag);
+  TORCH_CHECK((b != at::ROCmFABackend::HipDNN) || hasHipDNN(),
+      "Cannot set preferred SDPA backend to hipDNN since PyTorch was not built with hipDNN");
 #endif
   rocm_fa_preferred_backend = b;
 }

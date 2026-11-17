@@ -587,6 +587,12 @@ _efficient_attention_backward(
     }
     return std::make_tuple(std::move(grad_q), std::move(grad_k), std::move(grad_v), std::move(grad_bias));
   }
+  // hipDNN's forward is not paired with another library's backward: the
+  // dropout masks differ. Until the hipDNN backward is wired, SDPA does not
+  // pick hipDNN for inputs that require grad.
+  TORCH_CHECK(
+      at::globalContext().getROCmFAPreferredBackend() != at::ROCmFABackend::HipDNN,
+      "Efficient attention backward is not available through hipDNN yet");
   if(at::globalContext().getROCmFAPreferredBackend() == at::ROCmFABackend::Ck)
   {
 #if defined(USE_ROCM_CK_SDPA)

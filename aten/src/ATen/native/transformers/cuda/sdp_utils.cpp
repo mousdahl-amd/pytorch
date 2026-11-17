@@ -502,16 +502,36 @@ bool check_sm_version(cudaDeviceProp * dprops) {
   return is_gte_lower_bound && is_lte_upper_bound;
 }
 
+#if USE_ROCM_ATTENTION
+// hipDNN serves the forward only, and its forward is never paired with another
+// library's backward (the dropout masks differ), so inputs that require grad
+// do not take it until its backward is wired.
+bool check_hipdnn_forward_only(sdp_params const& params, bool debug) {
+  if (input_requires_grad(params)) {
+    if (debug) {
+      TORCH_WARN(
+          "Flash and memory-efficient attention through hipDNN do not support "
+          "inputs that require grad yet.");
+    }
+    return false;
+  }
+  return true;
+}
+#endif
+
 bool check_flash_attention_hardware_support(sdp_params const& params, bool debug) {
   // Check that the gpu is capable of running flash attention
   using sm80 = SMVersion<8, 0>;
   using sm121 = SMVersion<12, 1>;
 #if USE_ROCM
 #if USE_ROCM_ATTENTION
-  if(at::globalContext().getROCmFAPreferredBackend() == at::ROCmFABackend::Ck) {
+  const auto preferred = at::globalContext().getROCmFAPreferredBackend();
+  if (preferred == at::ROCmFABackend::Ck) {
     // User explicitly set CK as the flash attention backend. Return true for now
     // TODO: Flesh out sanity checks
     return true;
+  } else if (preferred == at::ROCmFABackend::HipDNN) {
+    return check_hipdnn_forward_only(params, debug);
   } else {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
     if (hipSuccess != aotriton::v2::flash::check_gpu(stream)) {
@@ -568,10 +588,13 @@ bool check_mem_efficient_hardware_support(sdp_params const& params, bool debug) 
   if (at::cuda::device_count() == 0) {
     return false;
   }
-  if(at::globalContext().getROCmFAPreferredBackend() == at::ROCmFABackend::Ck) {
+  const auto preferred = at::globalContext().getROCmFAPreferredBackend();
+  if (preferred == at::ROCmFABackend::Ck) {
     // User explicitly set CK as the flash attention backend. Return true for now
     // TODO: Flesh out sanity checks
     return true;
+  } else if (preferred == at::ROCmFABackend::HipDNN) {
+    return check_hipdnn_forward_only(params, debug);
   } else {
     auto stream = at::cuda::getCurrentCUDAStream().stream();
     if (hipSuccess != aotriton::v2::flash::check_gpu(stream)) {
