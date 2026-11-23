@@ -700,7 +700,9 @@ mha_fwd_hipdnn(
       {batch_size, num_heads, seqlen_q}, q.options().dtype(at::kFloat));
   auto [seed_t, offset_t] = philox_seed_offset(
       p_dropout, batch_size * num_heads * seqlen_q * seqlen_k, gen_, q);
-  // The debug mask is hipDNN's dropout keep mask (rng_dump), in fp32.
+  // The debug mask comes from hipDNN's dropout keep mask (rng_dump: 1 kept,
+  // 0 dropped), re-encoded after the call to the ROCm contract set by
+  // AOTriton's encoded softmax: +0.5 kept, -0.5 dropped.
   const bool dump_mask = return_softmax && p_dropout > 0.f;
   at::Tensor debug_mask = dump_mask
       ? at::empty({batch_size, num_heads, seqlen_q, seqlen_k}, q.options().dtype(at::kFloat))
@@ -732,6 +734,9 @@ mha_fwd_hipdnn(
     pack[kRngDump] = debug_mask.data_ptr();
   }
   execute(key, pack, q);
+  if (key.pod.rng_dump) {
+    debug_mask.sub_(0.5);
+  }
   return {out, q, k, v, softmax_lse, seed_t, offset_t, debug_mask};
 }
 
