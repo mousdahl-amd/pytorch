@@ -401,17 +401,21 @@ Plan build_plan(const GraphKey& key, hipdnnHandle_t handle) {
   return plan;
 }
 
-// Plans are built per thread, as hipDNN handles are, and kept for the life of
-// the thread.
+// Plans are built per thread, as hipDNN handles are, and never destroyed: a
+// thread's cache is deliberately leaked, as ATen/hipdnn/Handle.cpp leaks its
+// pooled handles. Threads such as the autograd workers exit while the process
+// tears down, and destroying a hipDNN graph then races with the teardown of
+// hipDNN and the HIP runtime on the main thread (seen as segfaults in
+// hipdnn_frontend::graph::Graph::~Graph at exit on gfx950).
 const Plan& get_plan(const GraphKeyWrapper& key, hipdnnHandle_t handle) {
-  thread_local std::unordered_map<
+  using Cache = std::unordered_map<
       GraphKeyWrapper,
       Plan,
-      at::native::ParamsWrapperHash<GraphKeyWrapper>>
-      cache;
-  auto it = cache.find(key);
-  if (it == cache.end()) {
-    it = cache.emplace(key, build_plan(key.pod, handle)).first;
+      at::native::ParamsWrapperHash<GraphKeyWrapper>>;
+  thread_local Cache* cache = new Cache();
+  auto it = cache->find(key);
+  if (it == cache->end()) {
+    it = cache->emplace(key, build_plan(key.pod, handle)).first;
   }
   return it->second;
 }
