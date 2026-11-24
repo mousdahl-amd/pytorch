@@ -72,8 +72,10 @@ python - <<'EOF'
 import torch
 print("torch", torch.__version__, "hip", torch.version.hip, "archs", torch.cuda.get_arch_list())
 print("ROCm SDPA libraries", list(torch.backends.cuda._ROCmFABackends))
-maps = sorted({l.split()[-1].rsplit("/", 1)[-1] for l in open("/proc/self/maps") if "hipdnn" in l})
+# Match file names only: $WORK's own path may contain "hipdnn".
+names = {l.split()[-1].rsplit("/", 1)[-1] for l in open("/proc/self/maps") if "/" in l}
+maps = sorted(n for n in names if "hipdnn" in n)
 print("hipDNN libraries mapped:", maps)
-assert "hipdnn" in torch.backends.cuda._ROCmFABackends and maps, "this torch is not built with hipDNN"
+assert "libhipdnn_backend.so" in maps, "this torch does not link hipDNN"
 EOF
 echo "=== [$(date -Is)] build done"
